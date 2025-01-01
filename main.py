@@ -2,11 +2,26 @@ import random
 import os
 import time
 
+
+# ANSI colors to help with reading and vibes
+class Colors:
+    RESET = "\033[0m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
 # Title Screen
 def title_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
     print("+=========================================+")
-    print("|       The Chronicles of Magic Gods 1    |")
+    print(f"|   {Colors.GREEN}The Chronicles of the Elemental Gods {Colors.RESET} |")
     print("+=========================================+")
     print("|               Credits:                  |")
     print("| Game main content:  gloomdev            |")
@@ -15,21 +30,25 @@ def title_screen():
 
 # Character class
 class Character:
+
+    party_level = 1
+    party_xp = 0
+    party_xp_to_level = 40
+
     def __init__(self, name, hp, attack, magic, level=1):
         self.name = name
         self.max_hp = hp
         self.hp = hp
         self.attack = attack
         self.magic = magic
-        self.level = level
-        self.xp = 0
+        self.level = party_level
 
     def level_up(self):
         self.level += 1
         self.max_hp += 10
         self.hp = self.max_hp
         self.attack += 2
-        print(f"{self.name} leveled up to level {self.level}!")
+        print(f"{Colors.GREEN}{self.name} leveled up to level {self.level}!{Colors.RESET}")
 
     def is_alive(self):
         return self.hp > 0
@@ -46,78 +65,151 @@ class Character:
 
 # Monster class
 class Monster:
-    def __init__(self, name, hp, damage, xp_reward):
-        self.name = name
+    def __init__(self, base_name, hp, damage, xp_reward, number=1):
+        self.base_name = base_name  # name
+        self.name = f"{base_name} {number}"  # adding number
         self.hp = hp
         self.damage = damage
         self.xp_reward = xp_reward
 
     def is_alive(self):
         return self.hp > 0
+    
+def force_end_combat(player, monsters):
+    # Check if the boss (Earthly God) has low HP
+    for monster in monsters:
+        if monster.name == "Earthly God" and monster.hp <= 90:
+            print(f"{Colors.RED}The Earthly God is weakened and unable to continue!{Colors.RESET}")
+            return True  # Trigger forced end
 
-# Combat function
+    # Check if the player is too weak to continue
+    if player.hp <= 20:
+        print(f"{Colors.RED}{player.name} is too weak to continue the battle!{Colors.RESET}")
+        return True  # Trigger forced end
+    
+    return False
+
 def combat(player, party, monsters):
-    print("\nBattle Start!")
     while any(monster.is_alive() for monster in monsters) and any(member.is_alive() for member in [player] + party):
+        # Check before any player actions
+        if force_end_combat(player, monsters):
+            return True  # End combat immediately
+
         for member in [player] + party:
             if member.is_alive():
-                monster = random.choice([m for m in monsters if m.is_alive()])
-                print(f"\n{member.name}'s turn! ({member.hp}/{member.max_hp} HP)")
-                print_monsters(monsters)
-                action = input("Attack (a), Magic (m), Block (b), or Run (r): ").lower()
-                while action not in ['a', 'm', 'b', 'r']:
-                    action = input("Invalid choice. Attack (a), Magic (m), Block (b), or Run (r): ").lower()
-                if action == 'a':
-                    damage = random.randint(member.attack - 2, member.attack + 2)
-                    monster.hp -= damage
-                    print(f"{member.name} dealt {damage} damage to {monster.name}!")
-                elif action == 'm':
-                    if member.name in ["Flip", "King Malice"]:
-                        member.magic_heal_party([player] + party)
-                    elif member.name == "Knight Rowan":
-                        damage = random.randint(member.magic - 3, member.magic + 3)
-                        monster.hp -= damage
-                        print(f"{member.name} used magic and dealt {damage} damage to {monster.name}!")
-                        print("Knight Rowan's magic attack also damages the party!")
-                        for ally in [player] + party:
-                            if ally.is_alive():
-                                ally.hp = max(0, ally.hp - 3)
-                                print(f"{ally.name} took 3 damage from Knight Rowan's magic attack!")
-                    else:
-                        damage = random.randint(member.magic - 3, member.magic + 3)
-                        monster.hp -= damage
-                        print(f"{member.name} used magic and dealt {damage} damage to {monster.name}!")
-                elif action == 'b':
-                    print(f"{member.name} blocks and takes reduced damage next turn!")
-                elif action == 'r':
-                    print("You ran away!")
-                    return False
+                alive_monsters = [m for m in monsters if m.is_alive()]
+                if alive_monsters:
+                    print(f"\n{member.name}'s turn! ({member.hp}/{member.max_hp} HP)")
+                    print_monsters(monsters)
+
+                    action = input("Attack (a), Magic (m), Block (b), or Run (r): ").lower()
+                    while action not in ['a', 'm', 'b', 'r']:
+                        action = input("Invalid choice. Attack (a), Magic (m), Block (b), or Run (r): ").lower()
+                    
+                    if action == 'a':
+                        if len(alive_monsters) == 1:  # Only 1 enemy left
+                            # Automatically target the only remaining enemy
+                            monster = alive_monsters[0]
+                            damage = random.randint(member.attack - 2, member.attack + 2)
+                            monster.hp -= damage
+                            print(f"{member.name} dealt {damage} damage to {monster.name}!")
+                        else:
+                            # Ask the player to select a target if more than 1 enemy
+                            print_monsters(alive_monsters)
+                            target_index = int(input("Choose target by number (1, 2, etc.): ")) - 1
+                            if 0 <= target_index < len(alive_monsters):
+                                monster = alive_monsters[target_index]
+                                damage = random.randint(member.attack - 2, member.attack + 2)
+                                monster.hp -= damage
+                                print(f"{member.name} dealt {damage} damage to {monster.name}!")
+                    elif action == 'm':
+                        if member.name in ["Flip", "King Malice"]:  # Check if the character is Flip or King Malice
+                            heal_amount = random.randint(8, 15)
+                            for ally in [player] + party:  # Heal all party members
+                                if ally.is_alive():
+                                    ally.hp = min(ally.max_hp, ally.hp + heal_amount)  # Don't overheal
+                                    print(f"{member.name} healed {ally.name} for {heal_amount} HP!")
+                        else:  # Damage enemies if not Flip or malice
+                            damage = random.randint(member.magic - 3, member.magic + 3)
+                            for monster in alive_monsters:
+                                monster.hp -= damage
+                                print(f"{member.name} used magic and dealt {damage} damage to {monster.name}!")
+                    elif action == 'b':
+                        print(f"{member.name} blocks and takes reduced damage next turn!")
+                    elif action == 'r':
+                        print("You ran away!")
+                        print("Running away makes you encounter more monsters!")
+                        # Heal the party!!!! omg
+                        player.heal()
+                        for member in party:
+                            member.heal()
+                        print(f"{Colors.GREEN}The party's HP has been fully restored anyways!{Colors.RESET}")
+                        return False
+
+                    # Check after player's action
+                    if force_end_combat(player, monsters):
+                        return True  # End combat immediately
 
         # Monsters attack
         for monster in monsters:
             if monster.is_alive():
                 target = random.choice([member for member in [player] + party if member.is_alive()])
                 target.hp -= monster.damage
-                print(f"{monster.name} dealt {monster.damage} damage to {target.name}!")
+                print(f"{Colors.RED}{monster.name} dealt {monster.damage} damage to {target.name}!{Colors.RESET}")
+                
+                # Check after monster's attack
+                if force_end_combat(player, monsters):
+                    return True  # End combat immediately
                 if target.hp <= 0:
                     print(f"{target.name} has fainted!")
 
     if all(not monster.is_alive() for monster in monsters):
+        global party_xp, party_level, party_xp_to_level
+
         xp_gain = sum(monster.xp_reward for monster in monsters)
-        print(f"Victory! Gained {xp_gain} XP.")
-        player.xp += xp_gain
-        for member in party:
-            member.xp += xp_gain
-            if member.xp >= member.level * 20:
-                member.level_up()
-        return True
-    return False
+        party_xp += xp_gain
+        print(f"{Colors.GREEN}Victory! The party gained {xp_gain} XP!{Colors.RESET}")
+
+        # Check if the party should level up
+        while party_xp >= party_xp_to_level:
+            party_xp -= party_xp_to_level
+            party_level += 1
+            party_xp_to_level = int(party_xp_to_level * 1.5)  # Increase XP needed for next level
+            print(f"{Colors.GREEN}The party leveled up to level {party_level}!{Colors.RESET}")
+
+            # Boost stats for all members
+            for member in [player] + party:
+                member.max_hp += 10
+                member.hp = member.max_hp
+                member.attack += 2
+                member.magic += 1
+                print(f"{member.name} powered up with the party level up!")
 
 # Display monsters
 def print_monsters(monsters):
     print("Enemies:")
     for monster in monsters:
-        print(f"{monster.name} - HP: {monster.hp}")
+        color = Colors.RED if monster.hp > 0 else Colors.MAGENTA  # Red if alive, Green if dead
+        print(f"{color}{monster.name} - HP: {monster.hp}{Colors.RESET}")
+
+
+def generate_monsters(base_monsters, num_monsters):
+    monster_counts = {}
+    enemies = []
+    for _ in range(num_monsters):
+        base_monster = random.choice(base_monsters)
+        # Track counts based on the base name
+        base_name = base_monster.base_name
+        monster_counts[base_name] = monster_counts.get(base_name, 0) + 1
+        # Generate unique name
+        enemies.append(Monster(
+            base_name,
+            base_monster.hp,
+            base_monster.damage,
+            base_monster.xp_reward,
+            monster_counts[base_name]
+        ))
+    return enemies
 
 # Main function
 def main():
@@ -132,6 +224,14 @@ def main():
 
     party = [blaze, flip]
 
+    # Monsters health/hit/exp
+    monsters = [
+        Monster("Large Rat", 20, 3, 5),
+        Monster("Forest Spirit", 30, 6, 10),
+        Monster("Centaur Statue", 40, 9, 15),
+        Monster("Rock Golem", 50, 12, 20)
+    ]
+
     # Starting Dialogue
     print("The King - My child has volunteered to bring peace back to our kingdom, by going to the cursed castle of the evil King Malice and taking back the heart of the Earthly God, and bringing it back where it rightly belongs.")
     input("")
@@ -142,13 +242,7 @@ def main():
 
 
 
-    # Monsters
-    monsters = [
-        Monster("Large Rat", 10, 3, 5),
-        Monster("Forest Spirit", 20, 6, 10),
-        Monster("Centaur Statue", 30, 9, 15),
-        Monster("Rock Golem", 40, 12, 20)
-    ]
+ 
 
     print("Fight your way to the border of the kingdom")
     input("...")
@@ -156,9 +250,9 @@ def main():
     # way to the border 1-2
     level = 1
     while level < 2:
-        print(f"\nLevel {level} begins!")
+        print(f"\nCurrent Party Level : {level}")
         num_monsters = random.randint(1, 4)
-        enemies = random.choices(monsters[:level], k=num_monsters)
+        enemies = generate_monsters(monsters[:level], num_monsters)
         if combat(player, party, enemies):
             level += 1
             player.level_up()
@@ -167,9 +261,9 @@ def main():
     input("...")
     #way to the castle 2-3
     while level < 3:
-        print(f"\nLevel {level} begins!")
+        print(f"\nCurrent Party Level : {level}")
         num_monsters = random.randint(1, 4)
-        enemies = random.choices(monsters[:level], k=num_monsters)
+        enemies = generate_monsters(monsters[:level], num_monsters)
         if combat(player, party, enemies):
             level += 1
             player.level_up()
@@ -182,9 +276,9 @@ def main():
     input("...")
 
     while level < 4:
-        print(f"\nLevel {level} begins!")
+        print(f"\nCurrent Party Level : {level}")
         num_monsters = random.randint(1, 4)
-        enemies = random.choices(monsters[:level], k=num_monsters)
+        enemies = generate_monsters(monsters[:level], num_monsters)
         if combat(player, party, enemies):
             level += 1
             player.level_up()
@@ -198,19 +292,19 @@ def main():
     if choice == 'm':
         king_malice = Character("King Malice", 65, 15, 12)
         party.append(king_malice)
-        print("King Malice joins your party!")
+        print(f"{Colors.CYAN}King Malice joins your party!{Colors.RESET}")
     elif choice == 'r':
         knight_rowan = Character("Knight Rowan", 120, 20, 10)
         party.append(knight_rowan)
-        print("Knight Rowan joins your party!")
+        print(f"{Colors.CYAN}Knight Rowan joins your party!{Colors.RESET}")
 
     print("You're leaving the cursed castle now, fight your way to where the Earthly God is")
     input("...")
 
     while level < 4:
-        print(f"\nLevel {level} begins!")
+        print(f"\nCurrent Party Level : {level}")
         num_monsters = random.randint(1, 4)
-        enemies = random.choices(monsters[:level], k=num_monsters)
+        enemies = generate_monsters(monsters[:level], num_monsters)
         if combat(player, party, enemies):
             level += 1
             player.level_up()
